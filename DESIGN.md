@@ -4,62 +4,79 @@
 
 基于百度智能云人脸识别服务的人脸签到系统。用户通过手机端拍照上传，服务器调用百度云端人脸搜索 API 完成身份匹配，无需设备关联目标人脸。支持照片库管理、签到记录查看等功能。
 
-支持三种访问方式：
-- **PWA** — 手机浏览器直接打开（已支持 Service Worker 离线缓存）
-- **APK** — 安装为原生 Android 应用（WebView 壳，静态资源本地打包）
-- **内网穿透** — 本地开发环境通过 ngrok 暴露公网域名
+当前部署形态：
+- **本地 Docker Compose** — API 服务 + PostgreSQL 均在本地容器中运行
+- **ngrok 内网穿透** — 将本地 8000 端口暴露为公网 HTTPS 地址，供手机/APK 访问
+- **PWA** — 手机浏览器直接打开 ngrok 地址（已支持 Service Worker 离线缓存）
+- **APK** — 安装为原生 Android 应用（WebView 壳，静态资源本地打包，指向 ngrok 地址）
+
+未来可迁至 Render 生产部署（`render.yaml` 已预置）。
 
 ## 2. 系统架构
 
 ```
-                        ┌──────────────────┐
-                        │   Android APK     │
-                        │  (WebView 壳)     │
-                        │  静态资源本地打包  │
-                        └────────┬─────────┘
-                                 │ HTTPS
-                ┌────────────────┼────────────────┐
-                │                │                │
-       ┌────────▼───┐   ┌───────▼───────┐        │
-       │  ngrok 隧道  │   │  Render Cloud │        │
-       │ (开发/测试)  │   │   (生产)      │        │
-       └────────┬───┘   └───────┬───────┘        │
-                │               │                │
-                └───────┬───────┘                │
-                        │                        │
-               ┌────────▼────────────────────────▼──┐
-               │          FastAPI (Docker)           │
-               │  ┌──────────────────────────────┐   │
-               │  │  限流中间件 (per-IP, 滑动窗口) │   │
-               │  │  用户缓存 (TTL 60s, 512 条)   │   │
-               │  └──────────────────────────────┘   │
-               │  ┌────────────┐  ┌────────────┐     │
-               │  │  Uvicorn   │  │ PostgreSQL  │     │
-               │  │  workers=N │──│  (Managed)  │     │
-               │  └─────┬──────┘  └────────────┘     │
-               └────────┼────────────────────────────┘
-                        │ HTTPS
-               ┌────────▼──────────┐
-               │  百度智能云 FRS   │
-               │  ┌─────────────┐  │
-               │  │ Semaphore(1)│  │  ← QPS=1 串行化
-               │  │ 指数退避重试 │  │
-               │  └─────────────┘  │
-               │  人脸搜索 M:N      │
-               │  人脸库管理        │
-               └───────────────────┘
+                         ┌──────────────────┐
+                         │   Android APK     │
+                         │  (WebView 壳)     │
+                         │  静态资源本地打包  │
+                         │  API → ngrok URL  │
+                         └────────┬─────────┘
+                                  │
+                         ┌────────▼─────────┐
+                         │   手机 PWA 浏览器  │
+                         │  (直接访问 ngrok)  │
+                         └────────┬─────────┘
+                                  │ HTTPS
+                                  │
+                         ┌────────▼─────────┐
+                         │   ngrok 公网隧道   │
+                         │  taco-...free.dev │
+                         │  HTTPS → localhost │
+                         └────────┬─────────┘
+                                  │ :8000
+                  ┌───────────────┴───────────────┐
+                  │      开发者本机 (Windows)       │
+                  │  ┌─────────────────────────┐  │
+                  │  │     Docker Compose       │  │
+                  │  │  ┌─────────────────────┐ │  │
+                  │  │  │  FastAPI (Docker)   │ │  │
+                  │  │  │  Uvicorn workers=N  │ │  │
+                  │  │  │  ┌───────────────┐  │ │  │
+                  │  │  │  │ 限流中间件     │  │ │  │
+                  │  │  │  │ 用户缓存       │  │ │  │
+                  │  │  │  └───────────────┘  │ │  │
+                  │  │  └────────┬───────────┘ │  │
+                  │  │           │             │  │
+                  │  │  ┌────────▼───────────┐ │  │
+                  │  │  │  PostgreSQL 容器   │ │  │
+                  │  │  │  (Docker Volume)   │ │  │
+                  │  │  └───────────────────┘ │  │
+                  │  └─────────────────────────┘  │
+                  └───────────────┬───────────────┘
+                                  │ HTTPS
+                         ┌────────▼──────────┐
+                         │  百度智能云 FRS   │
+                         │  ┌─────────────┐  │
+                         │  │ Semaphore(1)│  │  ← QPS=1 串行化
+                         │  │ 指数退避重试 │  │
+                         │  └─────────────┘  │
+                         │  人脸搜索 M:N      │
+                         │  人脸库管理        │
+                         └───────────────────┘
+
+         未来: Docker Compose → Render Cloud (render.yaml 已预置)
 ```
 
 ### 部署结构
 
 | 组件 | 方式 | 说明 |
 |------|------|------|
-| API 服务 | Render Web Service (Docker) | FastAPI + Uvicorn (多 Worker) |
-| 数据库 | Render Managed PostgreSQL | 免费套餐 |
-| 文件存储 | Render Persistent Disk | 10GB 照片存储 |
-| 人脸识别 | 百度智能云 API | 人脸检测 + 人脸搜索 M:N |
-| 内网穿透 | ngrok | 本地开发暴露公网 HTTPS 地址 |
-| 移动端 | TWA/WebView APK | 静态资源打包进 APK，API 走 HTTPS |
+| API 服务 | Docker Compose (本地) | FastAPI + Uvicorn (8 Workers) |
+| 数据库 | PostgreSQL 容器 (本地) | Docker Volume 持久化 |
+| 公网暴露 | **ngrok** | 免费隧道，`https://*.ngrok-free.dev` → `localhost:8000` |
+| 人脸识别 | 百度智能云 API | 人脸检测 + 人脸搜索 M:N（免费版 QPS=1） |
+| 移动端 | WebView APK | 静态资源打包进 APK，API 通过 ngrok HTTPS |
+| 未来迁云 | Render (备选) | `render.yaml` 已预置，含托管 PostgreSQL
 
 ## 3. 技术选型
 
@@ -72,8 +89,8 @@
 | 认证 | **JWT (python-jose)** | 无状态认证 + TTL 缓存减少 DB 查询 |
 | 密码哈希 | **bcrypt** | 主流密码哈希算法，抗暴力破解 |
 | HTTP 客户端 | **httpx (共享单例)** | 全局连接池复用（keepalive 20, max 50） |
-| 容器化 | **Docker + Docker Compose** | 本地开发环境一致性 |
-| 部署 | **Render (Blueprint)** | 支持 Dockerfile + 托管 PostgreSQL，一键部署 |
+| 容器化 | **Docker + Docker Compose** | 本地开发/运行环境，PostgreSQL + FastAPI 一体化编排 |
+| 部署 | **Docker Compose + ngrok**（当前） | ngrok 内网穿透暴露公网；未来可迁至 Render |
 | 限流 | **自研滑动窗口** | per-IP 限流，API 30次/分，静态 120次/分 |
 | 缓存 | **自研 TTLCache** | JWT 用户查询 60s 过期，最大 512 条 |
 | 并发控制 | **asyncio.Semaphore(1)** | 百度 QPS=1 串行化 + 指数退避重试 |
@@ -304,8 +321,9 @@ base64 编码 → Semaphore(1) 获取令牌
 |------|------|----------|
 | 百度 QPS=1 | 免费版硬限制 | Semaphore(1) 串行化 + 重试，读操作完全不受影响 |
 | 单机内存 | Worker 数 × 缓存大小 | TTLCache 每 Worker 512 条，8 Workers 约 4096 条 |
-| PostgreSQL | Render 免费版连接数限制 | pool_size=20 + overflow=10，连接高效复用 |
-| ngrok 免费版 | 随机子域名 + 警告拦截页 | APK 注入 bypass 头；生产环境部署到 Render 固定域名 |
+| PostgreSQL | 本地容器，资源受本机限制 | pool_size=20 + overflow=10，Docker Volume 持久化 |
+| ngrok 免费版 | 随机子域名、警告拦截页、带宽限制 | APK 注入 bypass 头绕过拦截；频繁重启需重建 APK |
+| 本机稳定性 | 关机即断服 | 未来迁至 Render 云解决 |
 
 ## 9. CI/CD 流水线
 
@@ -375,6 +393,7 @@ Push/PR to main
 | Phase 2 | 内网穿透部署（ngrok + APK 客户端） | ✓ 已完成 |
 | Phase 3 | 高并发增强（多 Worker / 限流 / 缓存 / Semaphore） | ✓ 已完成 |
 | Phase 4 | CI/CD 流水线（测试 / 压力 / 镜像构建） | ✓ 已完成 |
-| Phase 5 | Render 生产部署（render.yaml 已有） | 待部署 |
-| Phase 6 | Redis 分布式缓存 / 分布式限流 | 待扩展 |
-| Phase 7 | 百度 QPS 升级到付费版 + 并发扩容 | 待评估 |
+| Phase 5 | Render 生产部署（`render.yaml` 已预置，一键即可） | 待部署 |
+| Phase 6 | 固定域名（ngrok 付费 / Render 自带）→ APK 无需重签 | 待评估 |
+| Phase 7 | Redis 分布式缓存 / 分布式限流（跨 Worker 共享状态） | 待扩展 |
+| Phase 8 | 百度 QPS 升级到付费版 + 并发扩容 | 待评估 |
