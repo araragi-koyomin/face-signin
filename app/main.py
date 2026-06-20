@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -13,6 +13,8 @@ from app.models.user import User
 from app.schemas.user import UserOut
 from app.services.auth import get_current_user, require_admin
 from app.routers import auth, faces, signin
+from app.services.baidu_face import close_http_client
+from app.concurrency import RateLimiter
 
 NO_CACHE = {"Cache-Control": "no-store, max-age=0"}
 
@@ -23,6 +25,7 @@ async def lifespan(app: FastAPI):
     os.makedirs("uploads/faces", exist_ok=True)
     os.makedirs("uploads/signin", exist_ok=True)
     yield
+    await close_http_client()
     await engine.dispose()
 
 
@@ -63,6 +66,31 @@ async def add_no_cache(request, call_next):
     if request.url.path.startswith("/static/") or request.url.path.startswith("/app/"):
         response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
+
+
+# ── Per-IP rate limiter (30 req/min for API, 120 req/min for static) ──
+_api_limiter = RateLimiter(max_requests=30, window_seconds=60.0)
+_static_limiter = RateLimiter(max_requests=120, window_seconds=60.0)
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next):
+    client_ip = request.client.host if request.client else "unknown"
+    path = request.url.path
+
+    if path.startswith("/api/"):
+        allowed = await _api_limiter.acquire(client_ip)
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Please try again later."},
+            )
+    elif path.startswith("/static/") or path.startswith("/app/"):
+        allowed = await _static_limiter.acquire(client_ip)
+        if not allowed:
+            return JSONResponse(status_code=429, content={"detail": "Too many requests"})
+
+    return await call_next(request)
 
 
 @app.get("/")

@@ -10,8 +10,12 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
+from app.concurrency import TTLCache
 
 security = HTTPBearer()
+
+# Cache user lookups to reduce DB load on frequent authenticated requests
+_user_cache = TTLCache(maxsize=512, ttl=60.0)
 
 
 def hash_password(password: str) -> str:
@@ -41,10 +45,18 @@ async def get_current_user(
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
+    # Check cache first
+    cache_key = f"user:{user_id}"
+    cached = await _user_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    await _user_cache.set(cache_key, user)
     return user
 
 

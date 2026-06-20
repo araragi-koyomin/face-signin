@@ -1,26 +1,29 @@
-import multiprocessing
+import os
+
 import uvicorn
 
 
-def run_http():
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, log_level="info")
+def main():
+    cpu_count = os.cpu_count() or 4
+    # Allocate workers: 2 ~ cpu_count, capped at 8 for typical cloud instances
+    workers = min(max(2, cpu_count // 2), 8)
 
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8000"))
 
-def run_https():
+    print(f"Starting FaceVault with {workers} workers on {host}:{port}")
+
     uvicorn.run(
         "app.main:app",
-        host="0.0.0.0",
-        port=8443,
-        ssl_keyfile="/app/key.pem",
-        ssl_certfile="/app/cert.pem",
+        host=host,
+        port=port,
+        workers=workers,
         log_level="info",
+        timeout_keep_alive=30,
+        limit_concurrency=1000,
+        backlog=2048,
     )
 
 
 if __name__ == "__main__":
-    p1 = multiprocessing.Process(target=run_http, daemon=True)
-    p2 = multiprocessing.Process(target=run_https, daemon=True)
-    p1.start()
-    p2.start()
-    p1.join()
-    p2.join()
+    main()

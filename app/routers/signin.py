@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
-import httpx
 import aiofiles
 
 from app.config import settings
@@ -18,7 +17,7 @@ from app.models.face import Face
 from app.models.attendance import Attendance
 from app.schemas.attendance import SignInResponse, AttendanceOut, AttendanceStats
 from app.services.auth import get_current_user, require_admin
-from app.services.baidu_face import faceset_search
+from app.services.baidu_face import faceset_search, get_http_client
 
 router = APIRouter(prefix="/api", tags=["signin"])
 
@@ -46,8 +45,8 @@ async def sign_in(
     try:
         image_b64 = base64.b64encode(contents).decode("utf-8")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            result = await faceset_search(client, settings.BAIDU_GROUP_ID, image_b64)
+        client = await get_http_client()
+        result = await faceset_search(client, settings.BAIDU_GROUP_ID, image_b64)
 
         user_list = result.get("user_list", [])
         if not user_list:

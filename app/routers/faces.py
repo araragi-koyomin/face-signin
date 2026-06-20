@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-import httpx
 import aiofiles
 
 from app.config import settings
@@ -14,7 +13,7 @@ from app.models.user import User
 from app.models.face import Face
 from app.schemas.face import FaceOut, FaceUploadResponse
 from app.services.auth import get_current_user, require_admin
-from app.services.baidu_face import faceset_add_face, faceset_delete_face, read_image_as_base64
+from app.services.baidu_face import faceset_add_face, faceset_delete_face, read_image_as_base64, get_http_client
 
 router = APIRouter(prefix="/api/faces", tags=["faces"])
 
@@ -53,11 +52,11 @@ async def upload_face(
         import base64
         image_b64 = base64.b64encode(contents).decode("utf-8")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            baidu_user_id = str(target_user.id).replace("-", "")
-            baidu_face_token = await faceset_add_face(
-                client, settings.BAIDU_GROUP_ID, image_b64, baidu_user_id
-            )
+        client = await get_http_client()
+        baidu_user_id = str(target_user.id).replace("-", "")
+        baidu_face_token = await faceset_add_face(
+            client, settings.BAIDU_GROUP_ID, image_b64, baidu_user_id
+        )
 
         face = Face(
             user_id=target_user.id,
@@ -108,8 +107,8 @@ async def delete_face(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own faces")
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await faceset_delete_face(client, face.baidu_group_id, face.baidu_face_token)
+        client = await get_http_client()
+        await faceset_delete_face(client, face.baidu_group_id, face.baidu_face_token)
     except Exception:
         pass
 

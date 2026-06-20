@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-import httpx
 import aiofiles
 
 from app.config import settings
@@ -14,7 +13,7 @@ from app.models.user import User
 from app.models.face import Face
 from app.schemas.user import UserCreate, UserLogin, UserOut, TokenOut
 from app.services.auth import hash_password, verify_password, create_access_token, get_current_user
-from app.services.baidu_face import faceset_add_face
+from app.services.baidu_face import faceset_add_face, get_http_client
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -100,10 +99,10 @@ async def register_with_face(
         image_b64 = base64.b64encode(contents).decode("utf-8")
         baidu_user_id = str(user.id).replace("-", "")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            baidu_face_token = await faceset_add_face(
-                client, settings.BAIDU_GROUP_ID, image_b64, baidu_user_id
-            )
+        client = await get_http_client()
+        baidu_face_token = await faceset_add_face(
+            client, settings.BAIDU_GROUP_ID, image_b64, baidu_user_id
+        )
 
         face = Face(
             user_id=user.id,
