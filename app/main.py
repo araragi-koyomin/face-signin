@@ -1,19 +1,23 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from app.database import engine, Base
+from app.database import engine, Base, get_db, init_db
+from app.models.user import User
+from app.schemas.user import UserOut
+from app.services.auth import get_current_user
 from app.routers import auth, faces, signin
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    await init_db()
     os.makedirs("uploads/faces", exist_ok=True)
     os.makedirs("uploads/signin", exist_ok=True)
     yield
@@ -75,3 +79,12 @@ async def faces_page():
 @app.get("/app/records")
 async def records_page():
     return FileResponse("app/static/records.html")
+
+
+@app.get("/api/users", response_model=list[UserOut])
+async def list_users(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    return result.scalars().all()

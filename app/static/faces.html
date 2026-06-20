@@ -19,8 +19,10 @@
   <div class="card">
     <div class="card-header">添加人脸</div>
     <div>
-      <label for="faceUserId">用户 ID</label>
-      <input type="text" id="faceUserId" placeholder="粘贴用户 UUID">
+      <label for="faceUserId">选择用户</label>
+      <select id="faceUserId">
+        <option value="">-- 选择用户 --</option>
+      </select>
     </div>
     <input type="file" id="faceFile" accept="image/*" capture="user">
     <img id="preview" class="preview-img" alt="预览">
@@ -59,9 +61,9 @@ $('faceFile').onchange = () => {
 };
 
 $('addFaceBtn').onclick = async () => {
-  const uid = $('faceUserId').value.trim();
+  const uid = $('faceUserId').value;
   const file = $('faceFile').files[0];
-  if (!uid) { showErr('请输入 User ID'); return; }
+  if (!uid) { showErr('请选择用户'); return; }
   if (!file) { showErr('请选择照片'); return; }
 
   $('addFaceBtn').disabled = true;
@@ -107,7 +109,22 @@ function showErr(msg) { const el = $('error'); el.textContent = msg; el.classLis
 function showToast(msg, type) { const t = document.createElement('div'); t.className = 'toast toast-' + type; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3000); }
 function $(id) { return document.getElementById(id); }
 
+async function loadUsers() {
+  try {
+    const res = await fetch(API + '/api/users', { headers: h });
+    const users = await res.json();
+    const sel = $('faceUserId');
+    users.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.id;
+      opt.textContent = u.display_name + ' (' + u.username + ')';
+      sel.appendChild(opt);
+    });
+  } catch (e) { console.error(e); }
+}
+
 document.getElementById('logoutBtn').onclick = e => { e.preventDefault(); localStorage.clear(); location.href = '/app/login'; };
+loadUsers();
 loadFaces();
 </script>
 </body>
