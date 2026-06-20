@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#080808"/>
+  <rect x="2" y="2" width="188" height="188" rx="30" fill="none" stroke="#262626" stroke-width="2"/>
+  <circle cx="96" cy="72" r="28" fill="none" stroke="#00c853" stroke-width="4"/>
+  <circle cx="82" cy="66" r="4" fill="#00c853"/>
+  <circle cx="110" cy="66" r="4" fill="#00c853"/>
+  <path d="M 76 88 Q 96 108 116 88" fill="none" stroke="#00c853" stroke-width="3" stroke-linecap="round"/>
+  <rect x="54" y="128" width="84" height="20" rx="4" fill="none" stroke="#00c853" stroke-width="2"/>
+  <text x="96" y="143" text-anchor="middle" font-family="monospace" font-size="10" fill="#00c853" letter-spacing="2">SIGN IN</text>
+</svg>

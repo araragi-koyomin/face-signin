@@ -91,6 +91,16 @@ async def records_page():
     return FileResponse("app/static/records.html", headers=NO_CACHE)
 
 
+@app.get("/manifest.json")
+async def manifest():
+    return FileResponse("app/static/manifest.json")
+
+
+@app.get("/sw.js")
+async def sw():
+    return FileResponse("app/static/sw.js")
+
+
 @app.get("/api/users", response_model=list[UserOut])
 async def list_users(
     db: AsyncSession = Depends(get_db),
