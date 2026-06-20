@@ -99,10 +99,19 @@ $('registerBtn').onclick = async () => {
     const user = await res1.json();
     if (!res1.ok) throw new Error(user.detail || '注册失败');
 
+    const resLogin = await fetch(API + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const tokenData = await resLogin.json();
+    if (!resLogin.ok) throw new Error(tokenData.detail || '自动登录失败');
+
     const formData = new FormData();
     formData.append('image', faceFile);
     const res2 = await fetch(API + '/api/faces?user_id=' + user.id, {
       method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + tokenData.access_token },
       body: formData
     });
     const face = await res2.json();
