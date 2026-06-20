@@ -47,7 +47,7 @@ async def _call_baidu(client: httpx.AsyncClient, endpoint: str, body: dict) -> d
     return data
 
 
-async def faceset_add_face(client: httpx.AsyncClient, group_id: str, image_base64: str, user_id: str) -> str:
+async def faceset_add_face(client: httpx.AsyncClient, group_id: str, image_base64: str, user_id: str, action_type: str = "APPEND") -> str:
     """Register a face to Baidu face library. Returns face_token."""
     data = await _call_baidu(
         client,
@@ -59,7 +59,7 @@ async def faceset_add_face(client: httpx.AsyncClient, group_id: str, image_base6
             "user_id": str(user_id),
             "quality_control": "NORMAL",
             "liveness_control": "NONE",
-            "action_type": "REPLACE",
+            "action_type": action_type,
         },
     )
     return data["result"]["face_token"]
