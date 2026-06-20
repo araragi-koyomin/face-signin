@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Dashboard — FaceVault</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">FACE<span class="logo-dot"></span>VAULT</div>
+    <h1 class="page-title">控制台</h1>
+    <p class="page-subtitle" id="welcome">欢迎回来</p>
+  </header>
+
+  <div class="card" style="flex-direction:row;justify-content:space-around;text-align:center;">
+    <div>
+      <div style="font-family:var(--font-mono);font-size:1.5rem;color:var(--accent);" id="statUsers">-</div>
+      <div style="font-size:0.6875rem;color:var(--text-dim);">注册用户</div>
+    </div>
+    <div>
+      <div style="font-family:var(--font-mono);font-size:1.5rem;color:var(--accent-2);" id="statFaces">-</div>
+      <div style="font-size:0.6875rem;color:var(--text-dim);">人脸库</div>
+    </div>
+    <div>
+      <div style="font-family:var(--font-mono);font-size:1.5rem;color:var(--info);" id="statToday">-</div>
+      <div style="font-size:0.6875rem;color:var(--text-dim);">今日签到</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">快捷操作</div>
+    <a href="/app/signin" class="btn btn-primary" style="text-decoration:none;font-family:var(--font-mono);">打开签到</a>
+    <div style="display:flex;gap:var(--space-sm);">
+      <a href="/app/faces" class="btn btn-outline btn-sm" style="flex:1;text-decoration:none;text-align:center;">人脸库</a>
+      <a href="/app/records" class="btn btn-outline btn-sm" style="flex:1;text-decoration:none;text-align:center;">签到记录</a>
+      <a href="/app/register" class="btn btn-outline btn-sm" style="flex:1;text-decoration:none;text-align:center;">注册</a>
+    </div>
+  </div>
+
+  <nav class="nav-bottom">
+    <a href="/app/dashboard" class="active"><span class="nav-icon">&#9632;</span>控制台</a>
+    <a href="/app/signin"><span class="nav-icon">&#9679;</span>签到</a>
+    <a href="/app/faces"><span class="nav-icon">&#9638;</span>人脸库</a>
+    <a href="/app/records"><span class="nav-icon">&#9776;</span>记录</a>
+    <a href="#" id="logoutBtn"><span class="nav-icon">&#8855;</span>退出</a>
+  </nav>
+</div>
+
+<script>
+const API = '';
+const token = localStorage.getItem('token');
+if (!token) { location.href = '/app/login'; }
+
+(async () => {
+  try {
+    const h = { 'Authorization': 'Bearer ' + token };
+
+    const [resR] = await Promise.all([
+      fetch(API + '/api/records?date=' + new Date().toISOString().slice(0,10), { headers: h })
+    ]);
+    const records = await resR.json();
+    if (Array.isArray(records)) document.getElementById('statToday').textContent = records.length;
+
+    const resF = await fetch(API + '/api/faces', { headers: h });
+    const faces = await resF.json();
+    if (Array.isArray(faces)) {
+      document.getElementById('statFaces').textContent = faces.length;
+      const users = new Set(faces.map(f => f.user_id));
+      document.getElementById('statUsers').textContent = users.size;
+    }
+  } catch (e) { /* silent */ }
+})();
+
+document.getElementById('logoutBtn').onclick = e => {
+  e.preventDefault();
+  localStorage.removeItem('token');
+  localStorage.removeItem('user_id');
+  location.href = '/app/login';
+};
+</script>
+</body>
+</html>

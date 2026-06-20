@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>注册 — FaceVault</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">FACE<span class="logo-dot"></span>VAULT</div>
+    <h1 class="page-title">注册账号</h1>
+    <p class="page-subtitle">填写基本信息并上传人脸照片完成注册</p>
+  </header>
+
+  <div class="alert alert-error" id="error"></div>
+
+  <div class="card">
+    <div class="card-header">账号信息</div>
+    <div>
+      <label for="username">用户名</label>
+      <input type="text" id="username" placeholder="字母数字组合" autocomplete="username" autofocus>
+    </div>
+    <div>
+      <label for="password">密码</label>
+      <input type="password" id="password" placeholder="至少6位密码" autocomplete="new-password">
+    </div>
+    <div>
+      <label for="display_name">显示名称</label>
+      <input type="text" id="display_name" placeholder="显示名称（如：张三）">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">人脸照片</div>
+    <p style="font-size:0.75rem;color:var(--text-dim);">请上传一张清晰的正面人脸照片，用于人脸库注册</p>
+    <input type="file" id="facePhoto" accept="image/*" capture="user">
+    <img id="preview" class="preview-img" alt="预览照片">
+  </div>
+
+  <button class="btn btn-primary" id="registerBtn">注册</button>
+
+  <p class="text-center">
+    已有账号？<a href="/app/login" class="link">登录</a>
+  </p>
+</div>
+
+<script>
+const API = '';
+const $ = id => document.getElementById(id);
+
+$('facePhoto').onchange = () => {
+  const file = $('facePhoto').files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = $('preview');
+      img.src = e.target.result;
+      img.classList.add('show');
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+$('registerBtn').onclick = async () => {
+  const el = $('error');
+  el.classList.remove('show');
+  const username = $('username').value.trim();
+  const password = $('password').value;
+  const display_name = $('display_name').value.trim();
+  const faceFile = $('facePhoto').files[0];
+
+  if (!username || !password || !display_name) {
+    el.textContent = '请填写所有字段';
+    el.classList.add('show');
+    return;
+  }
+  if (password.length < 6) {
+    el.textContent = '密码至少6位';
+    el.classList.add('show');
+    return;
+  }
+  if (!faceFile) {
+    el.textContent = '请上传人脸照片';
+    el.classList.add('show');
+    return;
+  }
+
+  $('registerBtn').disabled = true;
+  $('registerBtn').textContent = '注册中...';
+
+  try {
+    const res1 = await fetch(API + '/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, display_name })
+    });
+    const user = await res1.json();
+    if (!res1.ok) throw new Error(user.detail || '注册失败');
+
+    const formData = new FormData();
+    formData.append('image', faceFile);
+    const res2 = await fetch(API + '/api/faces?user_id=' + user.id, {
+      method: 'POST',
+      body: formData
+    });
+    const face = await res2.json();
+    if (!res2.ok) throw new Error(face.detail || '人脸注册失败');
+
+    showToast('注册成功！正在跳转...', 'success');
+    setTimeout(() => { location.href = '/app/login'; }, 1500);
+  } catch (e) {
+    el.textContent = e.message;
+    el.classList.add('show');
+    $('registerBtn').disabled = false;
+    $('registerBtn').textContent = '注册';
+  }
+};
+
+function showToast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+</script>
+</body>
+</html>

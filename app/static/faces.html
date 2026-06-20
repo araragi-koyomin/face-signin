@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>人脸库 — FaceVault</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">FACE<span class="logo-dot"></span>VAULT</div>
+    <h1 class="page-title">人脸库</h1>
+    <p class="page-subtitle">管理人脸照片库</p>
+  </header>
+
+  <div class="alert alert-error" id="error"></div>
+
+  <div class="card">
+    <div class="card-header">添加人脸</div>
+    <div>
+      <label for="faceUserId">用户 ID</label>
+      <input type="text" id="faceUserId" placeholder="粘贴用户 UUID">
+    </div>
+    <input type="file" id="faceFile" accept="image/*" capture="user">
+    <img id="preview" class="preview-img" alt="预览">
+    <button class="btn btn-primary btn-sm" id="addFaceBtn">注册人脸</button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">已注册人脸</div>
+    <div id="faceList">
+      <div class="empty">加载中...</div>
+    </div>
+  </div>
+
+  <nav class="nav-bottom">
+    <a href="/app/dashboard"><span class="nav-icon">&#9632;</span>控制台</a>
+    <a href="/app/signin"><span class="nav-icon">&#9679;</span>签到</a>
+    <a href="/app/faces" class="active"><span class="nav-icon">&#9638;</span>人脸库</a>
+    <a href="/app/records"><span class="nav-icon">&#9776;</span>记录</a>
+    <a href="#" id="logoutBtn"><span class="nav-icon">&#8855;</span>退出</a>
+  </nav>
+</div>
+
+<script>
+const API = '';
+const token = localStorage.getItem('token');
+if (!token) { location.href = '/app/login'; }
+const h = { 'Authorization': 'Bearer ' + token };
+
+$('faceFile').onchange = () => {
+  const file = $('faceFile').files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => { const img = $('preview'); img.src = e.target.result; img.classList.add('show'); };
+    reader.readAsDataURL(file);
+  }
+};
+
+$('addFaceBtn').onclick = async () => {
+  const uid = $('faceUserId').value.trim();
+  const file = $('faceFile').files[0];
+  if (!uid) { showErr('请输入 User ID'); return; }
+  if (!file) { showErr('请选择照片'); return; }
+
+  $('addFaceBtn').disabled = true;
+  $('addFaceBtn').textContent = '上传中...';
+  try {
+    const fd = new FormData(); fd.append('image', file);
+    const res = await fetch(API + '/api/faces?user_id=' + uid, { method: 'POST', headers: h, body: fd });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
+    $('faceFile').value = ''; $('preview').classList.remove('show'); $('faceUserId').value = '';
+    showToast('人脸注册成功', 'success');
+    loadFaces();
+  } catch (e) { showErr(e.message); }
+  $('addFaceBtn').disabled = false;
+  $('addFaceBtn').textContent = '注册人脸';
+};
+
+async function loadFaces() {
+  try {
+    const res = await fetch(API + '/api/faces', { headers: h });
+    const faces = await res.json();
+    const list = $('faceList');
+    if (!faces.length) { list.innerHTML = '<div class="empty">暂无注册人脸</div>'; return; }
+    list.innerHTML = '<div class="data-row data-row-header"><span class="data-cell">用户 ID</span><span class="data-cell">人脸标识</span><span class="data-cell" style="flex:0 0 60px"></span></div>' +
+      faces.map(f =>
+        '<div class="data-row"><span class="data-cell data-cell-mono">' + f.user_id.slice(0,8) + '...</span>' +
+        '<span class="data-cell data-cell-mono">' + f.baidu_face_token.slice(0,12) + '...</span>' +
+        '<span class="data-cell" style="flex:0 0 60px"><button class="btn btn-danger btn-sm" onclick="delFace(\'' + f.id + '\')">删除</button></span></div>'
+      ).join('');
+  } catch (e) { console.error(e); }
+}
+
+async function delFace(id) {
+  if (!confirm('确认删除此条人脸？百度云端也将同步删除。')) return;
+  try {
+    const res = await fetch(API + '/api/faces/' + id, { method: 'DELETE', headers: h });
+    if (!res.ok && res.status !== 204) { const d = await res.json(); throw new Error(d.detail); }
+    showToast('已删除', 'success');
+    loadFaces();
+  } catch (e) { showErr(e.message); }
+}
+
+function showErr(msg) { const el = $('error'); el.textContent = msg; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 4000); }
+function showToast(msg, type) { const t = document.createElement('div'); t.className = 'toast toast-' + type; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3000); }
+function $(id) { return document.getElementById(id); }
+
+document.getElementById('logoutBtn').onclick = e => { e.preventDefault(); localStorage.clear(); location.href = '/app/login'; };
+loadFaces();
+</script>
+</body>
+</html>

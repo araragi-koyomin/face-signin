@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>签到 — FaceVault</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">FACE<span class="logo-dot"></span>VAULT</div>
+    <h1 class="page-title">签到</h1>
+    <p class="page-subtitle">拍照或上传照片完成签到</p>
+  </header>
+
+  <div class="alert alert-error" id="error"></div>
+
+  <div class="card">
+    <div class="camera-preview" id="cameraBox">
+      <video id="video" autoplay playsinline style="display:none"></video>
+      <canvas id="canvas" style="display:none"></canvas>
+      <div class="camera-overlay" id="cameraOverlay"></div>
+      <div id="cameraPlaceholder" style="color:var(--text-dim);font-size:0.8125rem;">点击下方按钮拍照或上传</div>
+      <img id="capturedPreview" class="preview-img" alt="照片预览" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:var(--radius);display:none;">
+    </div>
+    <div class="flex-row" style="gap:var(--space-sm)">
+      <button class="btn btn-outline btn-sm" id="cameraBtn" style="flex:1">拍照</button>
+      <input type="file" id="fileInput" accept="image/*" capture="user" style="display:none">
+      <button class="btn btn-outline btn-sm" id="uploadBtn" style="flex:1">上传</button>
+      <button class="btn btn-outline btn-sm" id="retakeBtn" style="flex:1;display:none">重拍</button>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="signinBtn">提交签到</button>
+
+  <div class="result" id="resultBox">
+    <div class="result-icon" id="resultIcon"></div>
+    <div class="result-name" id="resultName"></div>
+    <div class="result-score" id="resultScore"></div>
+    <button class="btn btn-outline mt-lg" onclick="resetSignin()">再次签到</button>
+  </div>
+
+  <div style="text-align:center;margin-top:auto;padding-bottom:var(--space-lg);">
+    <a href="/app/login" class="link">管理入口</a>
+  </div>
+</div>
+
+<script>
+const API = '';
+const $ = id => document.getElementById(id);
+
+let imageBlob = null;
+let stream = null;
+
+$('cameraBtn').onclick = startCamera;
+$('uploadBtn').onclick = () => $('fileInput').click();
+
+$('fileInput').onchange = () => {
+  const file = $('fileInput').files[0];
+  if (file) {
+    imageBlob = file;
+    showCaptured(URL.createObjectURL(file));
+  }
+};
+
+$('retakeBtn').onclick = () => {
+  imageBlob = null;
+  $('retakeBtn').style.display = 'none';
+  $('cameraBtn').style.display = '';
+  $('uploadBtn').style.display = '';
+  document.getElementById('capturedPreview').style.display = 'none';
+  $('cameraPlaceholder').style.display = '';
+  $('cameraOverlay').style.display = '';
+  $('video').style.display = 'none';
+  stopCamera();
+};
+
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    const video = $('video');
+    video.srcObject = stream;
+    video.style.display = 'block';
+    $('cameraPlaceholder').style.display = 'none';
+    $('cameraBtn').textContent = '拍摄';
+    $('cameraBtn').onclick = capturePhoto;
+  } catch (e) {
+    showError('无法访问摄像头: ' + e.message);
+  }
+}
+
+function capturePhoto() {
+  const video = $('video');
+  const canvas = $('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  canvas.toBlob(blob => {
+    imageBlob = blob;
+    showCaptured(URL.createObjectURL(blob));
+  }, 'image/jpeg', 0.9);
+}
+
+function showCaptured(url) {
+  const img = document.getElementById('capturedPreview');
+  img.src = url;
+  img.style.display = 'block';
+  $('retakeBtn').style.display = '';
+  $('cameraBtn').style.display = 'none';
+  $('uploadBtn').style.display = 'none';
+  $('cameraPlaceholder').style.display = 'none';
+  $('cameraOverlay').style.display = 'none';
+  $('video').style.display = 'none';
+  stopCamera();
+}
+
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  $('cameraBtn').textContent = '拍照';
+  $('cameraBtn').onclick = startCamera;
+}
+
+function showError(msg) {
+  const el = $('error');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+$('signinBtn').onclick = async () => {
+  if (!imageBlob) { showError('请先拍照或选择照片'); return; }
+  $('signinBtn').disabled = true;
+  $('signinBtn').textContent = '处理中...';
+
+  try {
+    const formData = new FormData();
+    formData.append('image', imageBlob, 'signin.jpg');
+    const res = await fetch(API + '/api/sign-in', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    const box = $('resultBox');
+    const icon = $('resultIcon');
+    box.classList.add('show');
+
+    if (data.success) {
+      icon.className = 'result-icon success';
+      icon.innerHTML = '&#10003;';
+      $('resultName').textContent = data.display_name;
+      $('resultScore').textContent = '置信度: ' + (data.confidence || 0).toFixed(2) + '%';
+    } else {
+      icon.className = 'result-icon fail';
+      icon.innerHTML = '&#10007;';
+      $('resultName').textContent = '签到失败';
+      $('resultScore').textContent = data.message || '未匹配到人脸';
+    }
+    document.querySelector('.camera-preview').style.display = 'none';
+    $('signinBtn').style.display = 'none';
+  } catch (e) {
+    showError('签到出错: ' + e.message);
+    $('signinBtn').disabled = false;
+    $('signinBtn').textContent = '提交签到';
+  }
+};
+
+function resetSignin() {
+  imageBlob = null;
+  $('resultBox').classList.remove('show');
+  document.querySelector('.camera-preview').style.display = '';
+  $('signinBtn').style.display = '';
+  $('signinBtn').disabled = false;
+  $('signinBtn').textContent = '提交签到';
+  $('retakeBtn').style.display = 'none';
+  $('cameraBtn').style.display = '';
+  $('uploadBtn').style.display = '';
+  document.getElementById('capturedPreview').style.display = 'none';
+  $('cameraPlaceholder').style.display = '';
+  $('cameraOverlay').style.display = '';
+}
+</script>
+</body>
+</html>

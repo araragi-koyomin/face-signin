@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: face-signin-api
+    env: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: BAIDU_API_KEY
+        sync: false
+      - key: BAIDU_SECRET_KEY
+        sync: false
+      - key: BAIDU_GROUP_ID
+        value: default
+      - key: DATABASE_URL
+        fromDatabase:
+          name: face-signin-db
+          property: connectionString
+      - key: UPLOAD_DIR
+        value: /app/uploads
+
+databases:
+  - name: face-signin-db
+    plan: free

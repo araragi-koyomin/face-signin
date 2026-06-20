@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>签到记录 — FaceVault</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">FACE<span class="logo-dot"></span>VAULT</div>
+    <h1 class="page-title">签到记录</h1>
+    <p class="page-subtitle">查看签到记录</p>
+  </header>
+
+  <div class="card">
+    <div class="flex-row" style="flex-wrap:wrap;">
+      <div style="flex:1;min-width:140px;">
+        <label for="filterDate">日期</label>
+        <input type="text" id="filterDate" placeholder="YYYY-MM-DD（选填）">
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <label for="filterUser">用户 ID</label>
+        <input type="text" id="filterUser" placeholder="UUID（选填）">
+      </div>
+    </div>
+    <div class="flex-row" style="gap:var(--space-sm);">
+      <button class="btn btn-primary btn-sm" id="searchBtn" style="flex:1">查询</button>
+      <button class="btn btn-outline btn-sm" id="clearBtn" style="flex:1">清空</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">签到记录列表</div>
+    <div id="recordList">
+      <div class="empty">点击查询加载记录</div>
+    </div>
+  </div>
+
+  <nav class="nav-bottom">
+    <a href="/app/dashboard"><span class="nav-icon">&#9632;</span>控制台</a>
+    <a href="/app/signin"><span class="nav-icon">&#9679;</span>签到</a>
+    <a href="/app/faces"><span class="nav-icon">&#9638;</span>人脸库</a>
+    <a href="/app/records" class="active"><span class="nav-icon">&#9776;</span>记录</a>
+    <a href="#" id="logoutBtn"><span class="nav-icon">&#8855;</span>退出</a>
+  </nav>
+</div>
+
+<script>
+const API = '';
+const token = localStorage.getItem('token');
+if (!token) { location.href = '/app/login'; }
+const h = { 'Authorization': 'Bearer ' + token };
+
+$('searchBtn').onclick = loadRecords;
+$('clearBtn').onclick = () => { $('filterDate').value = ''; $('filterUser').value = ''; loadRecords(); };
+
+async function loadRecords() {
+  const list = $('recordList');
+  list.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    const date = $('filterDate').value.trim();
+    const uid = $('filterUser').value.trim();
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    if (uid) params.append('user_id', uid);
+
+    const url = API + '/api/records' + (params.toString() ? '?' + params.toString() : '');
+    const res = await fetch(url, { headers: h });
+    const records = await res.json();
+
+    if (!records.length) { list.innerHTML = '<div class="empty">暂无记录</div>'; return; }
+
+    list.innerHTML =
+      '<div class="data-row data-row-header"><span class="data-cell">姓名</span><span class="data-cell">时间</span><span class="data-cell">置信度</span></div>' +
+      records.map(r =>
+        '<div class="data-row"><span class="data-cell">' + (r.display_name || r.user_id.slice(0,8)) + '</span>' +
+        '<span class="data-cell data-cell-mono">' + new Date(r.timestamp).toLocaleString('zh-CN') + '</span>' +
+        '<span class="data-cell"><span class="badge badge-success">' + r.confidence.toFixed(1) + '%</span></span></div>'
+      ).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="empty">加载失败</div>';
+    console.error(e);
+  }
+}
+
+function $(id) { return document.getElementById(id); }
+document.getElementById('logoutBtn').onclick = e => { e.preventDefault(); localStorage.clear(); location.href = '/app/login'; };
+loadRecords();
+</script>
+</body>
+</html>
