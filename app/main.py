@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.database import engine, Base, get_db, init_db
 from app.models.user import User
 from app.schemas.user import UserOut
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, require_admin
 from app.routers import auth, faces, signin
 
 
@@ -84,7 +84,7 @@ async def records_page():
 @app.get("/api/users", response_model=list[UserOut])
 async def list_users(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    admin: User = Depends(require_admin),
 ):
     result = await db.execute(select(User).order_by(User.created_at.desc()))
     return result.scalars().all()

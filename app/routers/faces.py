@@ -13,7 +13,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.face import Face
 from app.schemas.face import FaceOut, FaceUploadResponse
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, require_admin
 from app.services.baidu_face import faceset_add_face, faceset_delete_face, read_image_as_base64
 
 router = APIRouter(prefix="/api/faces", tags=["faces"])
@@ -28,6 +28,9 @@ async def upload_face(
 ):
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only image files allowed")
+
+    if current_user.role != "admin" and str(current_user.id) != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only add faces for yourself")
 
     target = await db.execute(select(User).where(User.id == user_id))
     target_user = target.scalar_one_or_none()
@@ -83,7 +86,10 @@ async def list_faces(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Face).order_by(Face.created_at.desc()))
+    query = select(Face)
+    if current_user.role != "admin":
+        query = query.where(Face.user_id == current_user.id)
+    result = await db.execute(query.order_by(Face.created_at.desc()))
     return result.scalars().all()
 
 
@@ -97,6 +103,9 @@ async def delete_face(
     face = result.scalar_one_or_none()
     if not face:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Face not found")
+
+    if current_user.role != "admin" and face.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own faces")
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:

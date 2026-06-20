@@ -20,7 +20,7 @@
         <label for="filterDate">日期</label>
         <input type="text" id="filterDate" placeholder="YYYY-MM-DD（选填）">
       </div>
-      <div style="flex:1;min-width:140px;">
+      <div style="flex:1;min-width:140px;" id="filterUserRow">
         <label for="filterUser">用户 ID</label>
         <input type="text" id="filterUser" placeholder="UUID（选填）">
       </div>
@@ -87,8 +87,19 @@ async function loadRecords() {
 }
 
 function $(id) { return document.getElementById(id); }
+
+(async function init() {
+  try {
+    const meRes = await fetch(API + '/api/auth/me', { headers: h });
+    const me = await meRes.json();
+    if (me.role !== 'admin') {
+      document.getElementById('filterUserRow').style.display = 'none';
+    }
+  } catch (e) { console.error(e); }
+  loadRecords();
+})();
+
 document.getElementById('logoutBtn').onclick = e => { e.preventDefault(); localStorage.clear(); location.href = '/app/login'; };
-loadRecords();
 </script>
 </body>
 </html>

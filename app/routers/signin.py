@@ -17,7 +17,7 @@ from app.models.user import User
 from app.models.face import Face
 from app.models.attendance import Attendance
 from app.schemas.attendance import SignInResponse, AttendanceOut, AttendanceStats
-from app.services.auth import get_current_user
+from app.services.auth import get_current_user, require_admin
 from app.services.baidu_face import faceset_search
 
 router = APIRouter(prefix="/api", tags=["signin"])
@@ -96,10 +96,13 @@ async def get_records(
 ):
     query = select(Attendance).options(selectinload(Attendance.user)).order_by(Attendance.timestamp.desc())
 
+    if current_user.role != "admin":
+        query = query.where(Attendance.user_id == current_user.id)
+    elif user_id:
+        query = query.where(Attendance.user_id == user_id)
+
     if target_date:
         query = query.where(func.date(Attendance.timestamp) == target_date)
-    if user_id:
-        query = query.where(Attendance.user_id == user_id)
 
     result = await db.execute(query.limit(200))
     records = result.scalars().all()

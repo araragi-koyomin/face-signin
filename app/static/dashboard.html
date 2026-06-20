@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Dashboard — FaceVault</title>
+<title>控制台 — FaceVault</title>
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -11,22 +11,22 @@
   <header>
     <div class="logo">FACE<span class="logo-dot"></span>VAULT</div>
     <h1 class="page-title">控制台</h1>
-    <p class="page-subtitle" id="welcome">欢迎回来</p>
+    <p class="page-subtitle" id="welcome">欢迎</p>
   </header>
 
   <div class="card" style="flex-direction:row;justify-content:space-around;text-align:center;">
-    <div>
-      <div style="font-family:var(--font-mono);font-size:1.5rem;color:var(--accent);" id="statUsers">-</div>
-      <div style="font-size:0.6875rem;color:var(--text-dim);">注册用户</div>
-    </div>
-    <div>
-      <div style="font-family:var(--font-mono);font-size:1.5rem;color:var(--accent-2);" id="statFaces">-</div>
-      <div style="font-size:0.6875rem;color:var(--text-dim);">人脸库</div>
-    </div>
-    <div>
+    <div id="statSignins">
       <div style="font-family:var(--font-mono);font-size:1.5rem;color:var(--info);" id="statToday">-</div>
       <div style="font-size:0.6875rem;color:var(--text-dim);">今日签到</div>
     </div>
+    <div>
+      <div style="font-family:var(--font-mono);font-size:1.5rem;color:var(--accent-2);" id="statFaces">-</div>
+      <div style="font-size:0.6875rem;color:var(--text-dim);">我的人脸</div>
+    </div>
+  </div>
+
+  <div class="card" id="adminPanel">
+    <div class="card-header">管理面板</div>
   </div>
 
   <div class="card">
@@ -52,25 +52,39 @@
 const API = '';
 const token = localStorage.getItem('token');
 if (!token) { location.href = '/app/login'; }
+const h = { 'Authorization': 'Bearer ' + token };
 
 (async () => {
   try {
-    const h = { 'Authorization': 'Bearer ' + token };
+    const meRes = await fetch(API + '/api/auth/me', { headers: h });
+    const me = await meRes.json();
+    document.getElementById('welcome').textContent = (me.role === 'admin' ? '[管理员] ' : '') + me.display_name;
 
-    const [resR] = await Promise.all([
-      fetch(API + '/api/records?date=' + new Date().toISOString().slice(0,10), { headers: h })
+    const [recRes, faceRes] = await Promise.all([
+      fetch(API + '/api/records?date=' + new Date().toISOString().slice(0,10), { headers: h }),
+      fetch(API + '/api/faces', { headers: h })
     ]);
-    const records = await resR.json();
+
+    const records = await recRes.json();
     if (Array.isArray(records)) document.getElementById('statToday').textContent = records.length;
 
-    const resF = await fetch(API + '/api/faces', { headers: h });
-    const faces = await resF.json();
-    if (Array.isArray(faces)) {
-      document.getElementById('statFaces').textContent = faces.length;
-      const users = new Set(faces.map(f => f.user_id));
-      document.getElementById('statUsers').textContent = users.size;
+    const faces = await faceRes.json();
+    if (Array.isArray(faces)) document.getElementById('statFaces').textContent = faces.length;
+
+    if (me.role === 'admin') {
+      const usersRes = await fetch(API + '/api/users', { headers: h });
+      const users = await usersRes.json();
+      let html = '<div class="data-row data-row-header"><span class="data-cell">用户</span><span class="data-cell">用户名</span><span class="data-cell">角色</span></div>';
+      users.forEach(u => {
+        html += '<div class="data-row"><span class="data-cell">' + u.display_name + '</span>' +
+          '<span class="data-cell data-cell-mono">' + u.username + '</span>' +
+          '<span class="data-cell"><span class="badge badge-success">' + u.role + '</span></span></div>';
+      });
+      document.getElementById('adminPanel').innerHTML = '<div class="card-header">用户列表</div>' + html;
+    } else {
+      document.getElementById('adminPanel').style.display = 'none';
     }
-  } catch (e) { /* silent */ }
+  } catch (e) { console.error(e); }
 })();
 
 document.getElementById('logoutBtn').onclick = e => {

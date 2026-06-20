@@ -11,14 +11,14 @@
   <header>
     <div class="logo">FACE<span class="logo-dot"></span>VAULT</div>
     <h1 class="page-title">人脸库</h1>
-    <p class="page-subtitle">管理人脸照片库</p>
+    <p class="page-subtitle" id="pageRole"></p>
   </header>
 
   <div class="alert alert-error" id="error"></div>
 
-  <div class="card">
+  <div class="card" id="addFaceCard">
     <div class="card-header">添加人脸</div>
-    <div>
+    <div id="userSelectRow">
       <label for="faceUserId">选择用户</label>
       <select id="faceUserId">
         <option value="">-- 选择用户 --</option>
@@ -51,6 +51,9 @@ const token = localStorage.getItem('token');
 if (!token) { location.href = '/app/login'; }
 const h = { 'Authorization': 'Bearer ' + token };
 
+let isAdmin = false;
+let myUserId = '';
+
 $('faceFile').onchange = () => {
   const file = $('faceFile').files[0];
   if (file) {
@@ -61,7 +64,7 @@ $('faceFile').onchange = () => {
 };
 
 $('addFaceBtn').onclick = async () => {
-  const uid = $('faceUserId').value;
+  const uid = isAdmin ? $('faceUserId').value : myUserId;
   const file = $('faceFile').files[0];
   if (!uid) { showErr('请选择用户'); return; }
   if (!file) { showErr('请选择照片'); return; }
@@ -72,7 +75,8 @@ $('addFaceBtn').onclick = async () => {
     const fd = new FormData(); fd.append('image', file);
     const res = await fetch(API + '/api/faces?user_id=' + uid, { method: 'POST', headers: h, body: fd });
     if (!res.ok) { const d = await res.json(); throw new Error(d.detail); }
-    $('faceFile').value = ''; $('preview').classList.remove('show'); $('faceUserId').value = '';
+    $('faceFile').value = ''; $('preview').classList.remove('show');
+    if (isAdmin) $('faceUserId').value = '';
     showToast('人脸注册成功', 'success');
     loadFaces();
   } catch (e) { showErr(e.message); }
@@ -86,7 +90,7 @@ async function loadFaces() {
     const faces = await res.json();
     const list = $('faceList');
     if (!faces.length) { list.innerHTML = '<div class="empty">暂无注册人脸</div>'; return; }
-    list.innerHTML = '<div class="data-row data-row-header"><span class="data-cell">用户 ID</span><span class="data-cell">人脸标识</span><span class="data-cell" style="flex:0 0 60px"></span></div>' +
+    list.innerHTML = '<div class="data-row data-row-header"><span class="data-cell">用户</span><span class="data-cell">人脸标识</span><span class="data-cell" style="flex:0 0 60px"></span></div>' +
       faces.map(f =>
         '<div class="data-row"><span class="data-cell data-cell-mono">' + f.user_id.slice(0,8) + '...</span>' +
         '<span class="data-cell data-cell-mono">' + f.baidu_face_token.slice(0,12) + '...</span>' +
@@ -123,9 +127,24 @@ async function loadUsers() {
   } catch (e) { console.error(e); }
 }
 
+(async function init() {
+  try {
+    const meRes = await fetch(API + '/api/auth/me', { headers: h });
+    const me = await meRes.json();
+    isAdmin = me.role === 'admin';
+    myUserId = me.id;
+    document.getElementById('pageRole').textContent = isAdmin ? '管理员 — 管理所有用户人脸' : '你的人脸照片库';
+
+    if (isAdmin) {
+      loadUsers();
+    } else {
+      document.getElementById('userSelectRow').style.display = 'none';
+    }
+  } catch (e) { console.error(e); }
+  loadFaces();
+})();
+
 document.getElementById('logoutBtn').onclick = e => { e.preventDefault(); localStorage.clear(); location.href = '/app/login'; };
-loadUsers();
-loadFaces();
 </script>
 </body>
 </html>
