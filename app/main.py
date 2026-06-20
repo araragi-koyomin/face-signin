@@ -1,7 +1,7 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +13,8 @@ from app.models.user import User
 from app.schemas.user import UserOut
 from app.services.auth import get_current_user, require_admin
 from app.routers import auth, faces, signin
+
+NO_CACHE = {"Cache-Control": "no-store, max-age=0"}
 
 
 @asynccontextmanager
@@ -46,6 +48,14 @@ app.include_router(signin.router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
+@app.middleware("http")
+async def add_no_cache(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/") or request.url.path.startswith("/app/"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
 @app.get("/")
 async def root():
     return RedirectResponse("/app/signin")
@@ -53,32 +63,32 @@ async def root():
 
 @app.get("/app/login")
 async def login_page():
-    return FileResponse("app/static/login.html")
+    return FileResponse("app/static/login.html", headers=NO_CACHE)
 
 
 @app.get("/app/register")
 async def register_page():
-    return FileResponse("app/static/register.html")
+    return FileResponse("app/static/register.html", headers=NO_CACHE)
 
 
 @app.get("/app/signin")
 async def signin_page():
-    return FileResponse("app/static/signin.html")
+    return FileResponse("app/static/signin.html", headers=NO_CACHE)
 
 
 @app.get("/app/dashboard")
 async def dashboard_page():
-    return FileResponse("app/static/dashboard.html")
+    return FileResponse("app/static/dashboard.html", headers=NO_CACHE)
 
 
 @app.get("/app/faces")
 async def faces_page():
-    return FileResponse("app/static/faces.html")
+    return FileResponse("app/static/faces.html", headers=NO_CACHE)
 
 
 @app.get("/app/records")
 async def records_page():
-    return FileResponse("app/static/records.html")
+    return FileResponse("app/static/records.html", headers=NO_CACHE)
 
 
 @app.get("/api/users", response_model=list[UserOut])
