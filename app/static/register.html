@@ -91,31 +91,18 @@ $('registerBtn').onclick = async () => {
   $('registerBtn').textContent = '注册中...';
 
   try {
-    const res1 = await fetch(API + '/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, display_name })
-    });
-    const user = await res1.json();
-    if (!res1.ok) throw new Error(user.detail || '注册失败');
-
-    const resLogin = await fetch(API + '/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const tokenData = await resLogin.json();
-    if (!resLogin.ok) throw new Error(tokenData.detail || '自动登录失败');
-
     const formData = new FormData();
+    formData.append('username', username);
+    formData.append('password', password);
+    formData.append('display_name', display_name);
     formData.append('image', faceFile);
-    const res2 = await fetch(API + '/api/faces?user_id=' + user.id, {
+
+    const res = await fetch(API + '/api/auth/register-with-face', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + tokenData.access_token },
       body: formData
     });
-    const face = await res2.json();
-    if (!res2.ok) throw new Error(face.detail || '人脸注册失败');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '注册失败');
 
     showToast('注册成功！正在跳转...', 'success');
     setTimeout(() => { location.href = '/app/login'; }, 1500);
