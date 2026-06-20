@@ -1,0 +1,5 @@
+:8443 {
+    tls internal
+    reverse_proxy app:8000
+    header X-Forwarded-Proto https
+}
