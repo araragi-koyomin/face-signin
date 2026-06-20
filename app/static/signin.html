@@ -87,6 +87,10 @@ $('retakeBtn').onclick = () => {
 };
 
 async function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showError('摄像头需要 HTTPS 连接。请使用上传按钮代替拍照，或检查网址是否以 https:// 开头');
+    return;
+  }
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
     const video = $('video');
@@ -96,7 +100,13 @@ async function startCamera() {
     $('cameraBtn').textContent = '拍摄';
     $('cameraBtn').onclick = capturePhoto;
   } catch (e) {
-    showError('无法访问摄像头: ' + e.message);
+    if (e.name === 'NotAllowedError') {
+      showError('摄像头权限被拒绝，请在浏览器设置中允许摄像头访问，或使用上传按钮');
+    } else if (e.name === 'NotFoundError') {
+      showError('未检测到摄像头设备，请使用上传按钮');
+    } else {
+      showError('无法访问摄像头: ' + e.message + '。请使用上传按钮');
+    }
   }
 }
 

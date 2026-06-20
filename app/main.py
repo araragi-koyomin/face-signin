@@ -49,6 +49,15 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
 @app.middleware("http")
+async def enforce_https(request: Request, call_next):
+    proto = request.headers.get("X-Forwarded-Proto", "")
+    if proto == "http":
+        url = str(request.url).replace("http://", "https://", 1)
+        return RedirectResponse(url, status_code=301)
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def add_no_cache(request, call_next):
     response = await call_next(request)
     if request.url.path.startswith("/static/") or request.url.path.startswith("/app/"):
