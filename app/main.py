@@ -12,7 +12,7 @@ from app.database import engine, Base, get_db, init_db
 from app.models.user import User
 from app.schemas.user import UserOut
 from app.services.auth import get_current_user, require_admin
-from app.routers import auth, faces, signin
+from app.routers import auth, faces, signin, debug
 from app.services.baidu_face import close_http_client
 from app.concurrency import RateLimiter
 
@@ -47,6 +47,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(faces.router)
 app.include_router(signin.router)
+app.include_router(debug.router)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
